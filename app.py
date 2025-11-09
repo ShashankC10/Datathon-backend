@@ -97,11 +97,13 @@ def _preprocess_pdf(job_id, filepath):
         result_pdf_path = os.path.join(RESULTS_FOLDER, base_pdf_name)
         result_json_path = os.path.splitext(result_pdf_path)[0] + ".json"
 
+        prompt_overrides = load_settings()
         # Run the classifier
         classification = _classifier.classify_pdf_contextually(
             pdf_path=filepath,
             output_json=result_json_path,
             output_pdf=result_pdf_path,
+            prompt_overrides=prompt_overrides,
         )
 
         final_categories = classification.get("final_classification", {}).get("final_categories", [])
