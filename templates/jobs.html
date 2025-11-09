@@ -1,157 +1,81 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Task Dashboard</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-      :root {
-        --bg:#0b1220; --panel:#111827; --text:#e6edf3; --muted:#9ca3af;
-        --stroke:#1f2937; --brand:#2563eb; --ok:#059669; --bad:#b91c1c;
+<head>
+  <meta charset="UTF-8">
+  <title>Job Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background: #f4f4f4; }
+    .rerun { background: #ffc107; border: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; }
+    .rerun:hover { background: #ffb300; }
+  </style>
+</head>
+<body>
+  <h1>Jobs Dashboard</h1>
+  <button onclick="refresh()">🔄 Refresh</button>
+  <table id="jobs">
+    <thead>
+      <tr><th>ID</th><th>File</th><th>Status</th><th>Created</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for j in jobs %}
+      <tr>
+        <td>{{ j.id }}</td>
+        <td>{{ j.original_file }}</td>
+        <td>{{ j.status }}</td>
+        <td>{{ j.created_at }}</td>
+        <td class="api">
+          <a href="/api/jobs/{{ j.id }}" target="_blank">status</a>
+          {% if j.status in ['SUCCESS', 'FAILED'] %}
+            • <button class="rerun" data-id="{{ j.id }}">↻ Rerun</button>
+          {% endif %}
+          {% if j.status == 'SUCCESS' %}
+            • <a href="/api/jobs/{{ j.id }}/result" target="_blank">JSON</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <script>
+    async function refresh() {
+      const res = await fetch('/api/jobs');
+      const jobs = await res.json();
+      const tbody = document.querySelector('#jobs tbody');
+      tbody.innerHTML = jobs.map(j => `
+        <tr>
+          <td>${j.id}</td>
+          <td>${j.original_file}</td>
+          <td>${j.status}</td>
+          <td>${j.created_at}</td>
+          <td class="api">
+            <a href="/api/jobs/${j.id}" target="_blank">status</a>
+            ${(j.status==='SUCCESS' || j.status==='FAILED') ? ` • <button class="rerun" data-id="${j.id}">↻ Rerun</button>` : ''}
+            ${j.status==='SUCCESS' ? ` • <a href="/api/jobs/${j.id}/result" target="_blank">JSON</a>` : ''}
+          </td>
+        </tr>`).join('');
+    }
+
+    async function rerunJob(id) {
+      if (!confirm(`Re-run job ${id}?`)) return;
+      const res = await fetch(`/api/jobs/${id}/rerun`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) alert(data.error || 'Failed to rerun');
+      else {
+        alert(`Rerun started! New job ID: ${data.new_job_id}`);
+        refresh();
       }
-      *{box-sizing:border-box}
-      body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
-      .wrap{max-width:1200px;margin:3rem auto;padding:2rem;background:var(--panel);border-radius:1.25rem;box-shadow:0 20px 50px rgba(0,0,0,.35)}
-      h1{margin:0 0 .5rem;font-size:2rem}
-      .toolbar{display:flex;justify-content:space-between;align-items:center;gap:1rem}
-      .muted{color:var(--muted)}
-      table{width:100%;border-collapse:collapse;margin-top:1rem}
-      th,td{padding:.75rem;border-bottom:1px solid var(--stroke);text-align:left;vertical-align:middle}
-      th{color:#b7c3d7;font-weight:600}
-      .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-      .pill{display:inline-block;padding:.25rem .6rem;border-radius:999px;font-weight:700;font-size:.85rem;background:#374151}
-      .SUCCESS{background:var(--ok)}
-      .FAILED{background:var(--bad)}
-      .file{max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .copy{border:1px solid var(--stroke);background:#0b1220;color:var(--text);padding:.3rem .55rem;border-radius:.5rem;cursor:pointer;margin-left:.4rem}
-      a{color:#7aa2ff;text-decoration:none}
-      .btn{display:inline-block;background:var(--brand);color:#fff;padding:.6rem .9rem;border-radius:.6rem;text-decoration:none;font-weight:600}
-      .api a{white-space:nowrap}
-      .pager{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:.75rem 0}
-      .pager a{background:#0b1220;border:1px solid var(--stroke);color:var(--text);padding:.4rem .6rem;border-radius:.5rem;text-decoration:none}
-      .pager .active{background:var(--brand);border-color:var(--brand);color:#fff}
-      .pager .disabled{opacity:.45;pointer-events:none}
-      .pager select{background:#0b1220;border:1px solid var(--stroke);color:var(--text);padding:.35rem .5rem;border-radius:.5rem}
-    </style>
-    <script>
-      function getQuery(){
-        const p = new URLSearchParams(location.search);
-        return { page: parseInt(p.get('page')||'1',10), per_page: parseInt(p.get('per_page')||'10',10) };
+    }
+
+    document.addEventListener('click', e => {
+      if (e.target.classList.contains('rerun')) {
+        e.preventDefault();
+        rerunJob(e.target.dataset.id);
       }
-      function setQuery(page, per_page){
-        const params = new URLSearchParams(location.search);
-        params.set('page', page);
-        params.set('per_page', per_page);
-        history.replaceState(null, '', location.pathname + '?' + params.toString());
-      }
-      function renderPager(meta){
-        const top = document.getElementById('pager');
-        const bottom = document.getElementById('pager-bottom');
-        const build = () => {
-          const cont = document.createElement('div');
-          cont.className='pager';
-          const mk = (label, page, disabled, active)=>{
-            const a=document.createElement('a'); a.textContent=label; a.href='#';
-            if(active)a.classList.add('active'); if(disabled)a.classList.add('disabled');
-            a.onclick=(e)=>{e.preventDefault(); if(!disabled){ setQuery(page, meta.per_page); refresh(); }};
-            return a;
-          };
-          cont.appendChild(mk('‹ Prev', meta.prev_page||1, !meta.has_prev,false));
-          const pages=[]; if(meta.total_pages<=7){for(let i=1;i<=meta.total_pages;i++)pages.push(i);}else{pages.push(1);if(meta.page-1>1)pages.push(meta.page-1);pages.push(meta.page);if(meta.page+1<meta.total_pages)pages.push(meta.page+1);pages.push(meta.total_pages);}
-          const seen=new Set();
-          for(const p of pages){if(seen.has(p))continue;seen.add(p);cont.appendChild(mk(String(p),p,false,p===meta.page));}
-          cont.appendChild(mk('Next ›',meta.next_page||meta.total_pages,!meta.has_next,false));
-          const label=document.createElement('span');label.style.marginLeft='8px';label.textContent='• per page:';cont.appendChild(label);
-          const select=document.createElement('select');
-          for(const n of [5,10,20,50]){const opt=document.createElement('option');opt.value=n;opt.textContent=n;if(n===meta.per_page)opt.selected=true;select.appendChild(opt);}
-          select.onchange=()=>{setQuery(1,parseInt(select.value,10));refresh();};cont.appendChild(select);
-          const total=document.createElement('span');total.className='muted';total.style.marginLeft='8px';total.textContent=`• total: ${meta.total}`;cont.appendChild(total);
-          return cont;
-        };
-        top.innerHTML=''; top.appendChild(build());
-        bottom.innerHTML=''; bottom.appendChild(build());
-      }
-
-      async function refresh(){
-        try{
-          const q=getQuery();
-          const res=await fetch(`/api/jobs?page=${q.page}&per_page=${q.per_page}`);
-          const data=await res.json();
-          const jobs=data.items||[];
-          const meta=data.meta||{page:1,per_page:10,total:0,total_pages:1};
-          const tbody=document.querySelector('#rows');
-          tbody.innerHTML='';
-          for(const j of jobs){
-            const pages=(j.result&&j.result.pages!=null)?j.result.pages:'—';
-            const metaOK=(j.result&&j.result.metadata)?'yes':(j.status==='FAILED'?'error':'—');
-            const tr=document.createElement('tr');
-            tr.innerHTML=`
-              <td class="mono">${j.id}<button class="copy" onclick="navigator.clipboard.writeText('${j.id}')">Copy</button></td>
-              <td class="file" title="${(j.original_file||'').replaceAll('"','&quot;')}">${j.original_file||'—'}</td>
-              <td><span class="pill ${j.status}">${j.status}</span></td>
-              <td class="api">
-                <a href="/api/jobs/${j.id}" target="_blank">status</a>
-                ${j.status==='SUCCESS'
-                    ? ` • <a href="/api/jobs/${j.id}/result" target="_blank">JSON</a>${
-                        j.result?.classified_pdf
-                          ? ` • <a href="/results/${j.result.classified_pdf}" target="_blank">View PDF</a>`
-                          : ''
-                      }`
-                    : ''}
-              </td>
-            `;
-            tbody.appendChild(tr);
-          }
-          renderPager(meta);
-        }catch(e){console.error(e);}
-      }
-
-      document.addEventListener('DOMContentLoaded',()=>{ refresh(); setInterval(refresh,2000); });
-    </script>
-  </head>
-  <body>
-    <div class="wrap">
-      <div class="toolbar">
-        <h1>Task Dashboard</h1>
-        <div class="muted">Auto-refreshes every 2s</div>
-      </div>
-
-      <div id="pager" class="pager"></div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Job ID</th>
-            <th>File name</th>
-            <th>Status</th>
-            <th>Result</th>
-          </tr>
-        </thead>
-        <tbody id="rows">
-          {% for j in jobs %}
-          <tr>
-            <td class="mono">{{ j.id }} <button class="copy" onclick="navigator.clipboard.writeText('{{ j.id }}')">Copy</button></td>
-            <td class="file" title="{{ j.original_file or '' }}">{{ j.original_file or '—' }}</td>
-            <td><span class="pill {{ j.status }}">{{ j.status }}</span></td>
-            <td class="api">
-              <a href="/api/jobs/{{ j.id }}" target="_blank">status</a>
-              {% if j.status == 'SUCCESS' %}
-                • <a href="/api/jobs/{{ j.id }}/result" target="_blank">JSON</a>
-                {% if j.result and j.result.classified_pdf %}
-                  • <a href="/results/{{ j.result.classified_pdf }}" target="_blank">View PDF</a>
-                {% endif %}
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-
-      <div id="pager-bottom" class="pager"></div>
-
-      <div style="margin-top:1rem"><a class="btn" href="/">Upload more PDFs</a></div>
-    </div>
-  </body>
+    });
+  </script>
+</body>
 </html>
