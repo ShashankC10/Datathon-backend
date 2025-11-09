@@ -228,17 +228,6 @@ RULES:
     # ============================================================
     # STEP 4 — Extract image-only results
     # ============================================================
-    def extract_image_results(self, page_results):
-        out = []
-        for page in page_results:
-            for issue in page["issues"]:
-                if issue["entity_type"] == "image":
-                    out.append(issue)
-        return out
-
-    # ============================================================
-    # STEP 5 — Highlight text + image regions
-    # ============================================================
     def highlight_pdf(self, pdf_path, page_results, output_pdf):
         doc = fitz.open(pdf_path)
 
@@ -254,22 +243,28 @@ RULES:
                     for q in issue.get("quotes", []):
                         hits = pg.search_for(q)
                         for h in hits:
-                            annot = pg.add_highlight_annot(h)
-                            annot.set_info(
-                                title="PDF-Classifier",
-                                content=f"Categories: {', '.join(issue.get('categories'))}\n{issue.get('rationale')[:400]}"
-                            )
-                            annot.update()
+                            # Check if hit bounding box is valid before highlighting
+                            if h.is_valid and not h.is_empty and not h.is_infinite:
+                                annot = pg.add_highlight_annot(h)
+                                annot.set_info(title="PDF-Classifier",
+                                content=f"Categories: {', '.join(issue.get('categories'))}\n{issue.get('rationale')[:400]}")
+                                annot.update()
+                            else:
+                                print(f"Skipping invalid text highlight bbox on page {pno}: {h}")
+
 
                 elif issue["entity_type"] == "image":
-                    annot = pg.add_rect_annot(rect)
-                    annot.set_colors({"stroke": (1, 0, 0)})
-                    annot.set_info(
-                        title="PDF-Classifier",
-                        content=f"Categories: {', '.join(issue.get('categories'))}\n{issue.get('rationale')[:400]}"
-                    )
-                    annot.set_border(width=2)
-                    annot.update()
+                    # Check if image bounding box is valid before annotating
+                    if rect.is_valid and not rect.is_empty and not rect.is_infinite:
+                        annot = pg.add_rect_annot(rect)
+                        annot.set_colors({"stroke": (1, 0, 0)})
+                        annot.set_info(title="PDF-Classifier",
+                                content=f"Categories: {', '.join(issue.get('categories'))}\n{issue.get('rationale')[:400]}")
+                        annot.set_border(width=2)
+                        annot.update()
+                    else:
+                        print(f"Skipping invalid image bbox on page {pno}: {bbox}")
+
 
         doc.save(output_pdf)
         doc.close()
