@@ -7,4 +7,4 @@ pytesseract==0.3.13
 torch==2.6.0
 transformers==4.57.1
 requests
-aspose-words==24.8.0
+pypandoc

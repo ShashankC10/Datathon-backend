@@ -8,6 +8,7 @@ from threading import Lock
 from datetime import datetime
 import os, io, traceback, math
 from Inference import ContextualPDFClassifier
+import pypandoc
 
 
 load_dotenv()
