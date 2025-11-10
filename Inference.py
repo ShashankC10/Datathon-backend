@@ -1,3 +1,6 @@
+#Sohan contribution- LLM integration for contextual classification of PDF pages with text and images, with prompt engineering capabilities. and pdf highlight feature
+#Dhanush-BLIP model,Class integration, creation of dynamic prompt library for contextual classification of PDF pages with text and images. Prompt engineering capabilities added.
+#Shashank-Backed integration and system design for contextual classification of PDF pages with text and images using LLMs. PDF highlighting feature implemented.
 import os
 import io
 import json

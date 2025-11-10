@@ -52,8 +52,7 @@ results/
 # -------------------------------
 # Reports / Artifacts
 # -------------------------------
-*.pdf
-*.json
+/instance/results/*.pdf
 *.zip
 *.tar
 *.tar.gz
